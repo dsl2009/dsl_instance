@@ -5,8 +5,9 @@ import json
 from result import utils
 from skimage.measure import find_contours
 from scipy.interpolate import splprep, splev
+from result import shape_utils
 
-def get_counter(mask, pad_x, pad_y):
+def get_counter(img, mask, pad_x, pad_y):
     cout = []
     mask[np.where(mask>0)] = 255
     mask = np.asarray(mask, np.uint8)
@@ -21,13 +22,35 @@ def get_counter(mask, pad_x, pad_y):
             x_ls = []
             for d in range(x.shape[0]):
                 x_ls.append((x[d].tolist()))
+            d = np.asarray(x_ls) - [pad_x, pad_y]
+            draw_line(img, d)
             cout.append(x_ls)
     return len(contours), cout
-def draw_tmp(img, data):
 
-    cv2.polylines(img, np.asarray([data], np.int), True, (255, 255, 255), thickness=1)
-    plt.imshow(img)
-    plt.show()
+def simply_counter(mask, pad_x, pad_y):
+    cout = []
+    mask[np.where(mask>0)] = 255
+    mask = np.asarray(mask, np.uint8)
+
+    contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    for x in contours:
+        area = cv2.contourArea(x)
+        if area>50:
+            x = np.squeeze(x,axis=1)
+            x = x+[pad_x,pad_y]
+            x_ls = []
+            for d in range(x.shape[0]):
+                x_ls.append((x[d].tolist()))
+
+            cout.append(x_ls)
+    return len(contours), cout
+
+
+def draw_tmp(img, data):
+    cv2.polylines(img, np.asarray([data], np.int), True, (255, 255, 255), thickness=2)
+    #plt.imshow(img)
+    #plt.show()
 
 def clc_angle(x1,x2, y ):
     dist = np.sqrt((y[0] - x1[0]) ** 2 + (y[1] - x1[1]) ** 2)
@@ -50,7 +73,33 @@ def clc_angle(x1,x2, y ):
     angle2 = round(angle2,2)
     return dist, angle2
 
+def clc_angle_x(x1,x2):
+    dist = np.sqrt((x2[0] - x1[0]) ** 2 + (x2[1] - x1[1]) ** 2)
+    x1 = np.asarray(x1)
+    x2 = np.asarray(x2)
+    x = x2 - x1
+    y = np.asarray([1,0])
+    Lx = np.sqrt(x.dot(x))
+    Ly = np.sqrt(y.dot(y))
+    cos_angle = x.dot(y) / (Lx * Ly)
+    angle = np.arccos(cos_angle)
+    angle2 = angle * 360 / 2 / np.pi
+    angle2 = round(angle2,5)
+    return dist, angle2
 
+def clc_angle_y(x1,x2):
+    dist = np.sqrt((x2[0] - x1[0]) ** 2 + (x2[1] - x1[1]) ** 2)
+    x1 = np.asarray(x1)
+    x2 = np.asarray(x2)
+    x = x2 - x1
+    y = np.asarray([0,1])
+    Lx = np.sqrt(x.dot(x))
+    Ly = np.sqrt(y.dot(y))
+    cos_angle = x.dot(y) / (Lx * Ly)
+    angle = np.arccos(cos_angle)
+    angle2 = angle * 360 / 2 / np.pi
+    angle2 = round(angle2,2)
+    return dist, angle2
 
 
 def smooth_edge1(imgs, mask, pad_x, pad_y):
@@ -188,18 +237,22 @@ def draw_line(imgs, edges):
     for i in range(len(d)-1):
         x1, y1 = d[i]
         x2, y2 = d[i+1]
+        dist = np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
         if (x1==x2 and (x1%256==0 or x1%256==255)) or (y1==y2 and (y1%256==0 or y1%256==255)):
+            if dist<6:
+                cv2.line(imgs, tuple(d[i]), tuple(d[i + 1]), color=(255, 255, 255), thickness=2)
 
-            pass
         else:
-            if (abs(x1-x2) >0 and abs(x1-x2)<4) and (min(x1,x2)%256==0 or max(x1,x2)%256==255):
+            cv2.line(imgs, tuple(d[i]), tuple(d[i + 1]), color=(255, 255, 255), thickness=2)
 
-                pass
-            elif (abs(y1-y2) >0 and abs(y1-y2)<4) and (min(y1,y2)%256==0 or max(y1,y2)%256==255):
+            if y2%256==0 or y2%256==255 or x2%256==0 or x2%256==255 :
+                cv2.circle(imgs, tuple(d[i+1]), radius=4,color=(255, 255, 255), thickness=-1)
+            if y1%256==0 or y1%256==255 or x1%256==0 or x1%256==255 :
+                cv2.circle(imgs, tuple(d[i]), radius=4,color=(255, 255, 255), thickness=-1)
 
-                pass
-            else:
-                cv2.line(imgs, tuple(d[i]), tuple(d[i+1]), color=(255,255,255), thickness=2)
+
+
 
     return imgs
 
@@ -213,6 +266,49 @@ def get_ct_num(imgs, mask, pad_x, pad_y):
 
     contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     return len(contours)
+
+
+def jiaozheng(edges):
+
+    d = list(edges)
+    poly = shape_utils.convert_poly(d)
+    dw = np.sqrt(poly.area)
+
+    d.append(d[0])
+
+
+
+    for i in range(len(d) - 1):
+        x1, y1 = d[i]
+        x2, y2 = d[i + 1]
+        dist = np.sqrt((x1-x2)**2+(y1-y2)**2)
+        if dist>0.5*dw:
+            ag = clc_angle_x(d[i], d[i + 1])
+            print(ag)
+            ag = ag[1]
+
+            if ag>0 and ag<5:
+                print(ag)
+                print(x1%256,y1%256,x2%256,y2%256)
+                print(d[i],d[i+1])
+            if ag>85 and ag<90:
+                print(ag)
+                print(x1%256,y1%256,x2%256,y2%256)
+                print(d[i],d[i+1])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def smooth_edge(imgs, mask, pad_x, pad_y):
@@ -238,15 +334,20 @@ def smooth_edge(imgs, mask, pad_x, pad_y):
 
             keep_index = [0]
 
-            x_st = ct[0]
-
-            for i in range(len(ct) - 1):
+            st = ct[0]
+            print(ct)
+            for i in range(1, len(ct) - 1):
                 cen = ct[i]
                 end = ct[i + 1]
-                dist, ange = clc_angle(x_st, end, cen)
-                if ange < 120 or dist>10:
-                    x_st = ct[i]
+                dist, ange = clc_angle(st, end, cen)
+
+                #dist_x, ang_x = clc_angle_x(st,cen)
+
+
+                if ange<120 or dist>10 or cen[0]%256==0 or cen[0]%256==255 or cen[1]%256==0 or cen[0]%256==255:
+                    st = ct[i]
                     keep_index.append(i)
+
 
 
             keep_index = sorted(keep_index)
@@ -255,28 +356,16 @@ def smooth_edge(imgs, mask, pad_x, pad_y):
             for ix in keep_index:
                 if ct[ix] not in nn_edge:
                     nn_edge.append(ct[ix])
-            draw_line(imgs,nn_edge)
-
-            nn_edge = np.asarray(nn_edge)
+            #print(nn_edge)
+            draw_line(imgs, ct)
+            #jiaozheng(ct)
+            nn_edge = np.asarray(ct)
             nn_edge = nn_edge+[pad_x,pad_y]
 
             nn_edge = [nn_edge[i].tolist() for i in range(nn_edge.shape[0])]
             sm.append(nn_edge)
 
     return len(contours), sm
-
-
-
-
-
-def sub_conters():
-
-    org = []
-    with open('result.json') as f:
-        data = json.loads(f.read())
-    for k in range(len(data)):
-        org.append(data[k][0])
-        org.append(data[k][1])
 
 
 
@@ -387,16 +476,14 @@ def combine_row(edge_x,edge_y):
     copy_edge_x = list(edge_x)
     copy_edge_y = list(edge_y)
     num = 0
-    print(len(copy_edge_x),len(copy_edge_y))
-
     for index_x, x in enumerate(edge_x):
         for index_y, y in enumerate(edge_y):
+
+
             if x['bootom'] is not None and y['top'] is not None:
                 dx = x['bootom']
                 dy = y['top']
                 if dx['y']+1 == dy['y']:
-
-
                     st1 = dx['start']
                     end1 = dx['end']
 
@@ -466,7 +553,7 @@ def combine_row(edge_x,edge_y):
 
 
                         fin_result = fin_l1[1:-1] +fin_l2[1:-1]
-
+                        #draw_ok_edge([fin_result])
                         copy_edge_x.remove(x)
                         copy_edge_y.remove(y)
 
@@ -655,37 +742,35 @@ def hebing_xy():
     row = dict()
 
 
-    with open('result_handler.json') as f:
+    with open('result_handler2.json') as f:
         data = json.loads(f.read())
 
     for i in range(w):
-
         row_edge =None
-
-
-
         for j in range(h):
             idx = str(i)+'_'+str(j)
             if data.get(idx):
-
                 if row_edge is not None:
 
                     not_ok_edges, ok_edges = combine_row(row_edge, get_combine_loc(data[idx]))
                     row_edge = get_combine_loc(not_ok_edges)
+
                     ok_result.extend(ok_edges)
+
                 else:
                     row_edge = get_combine_loc(data[idx])
-
+        #draw_ok_edge(not_ok_edges)
         not_ok_result.append(not_ok_edges)
-        #draw_ok_edge(ok_result)
-        #draw_ok_edge(not_ok_result)
+        #mdraw_ok_edge(ok_result)
+
+
     t1 = list(ok_result)
     t2 = []
     for x in not_ok_result:
         t2.extend(x)
     #t2 = list(not_ok_result)
     t1.extend(t2)
-    #draw_ok_edge(t2)
+    draw_ok_edge(t2)
     print(len(not_ok_result))
 
 
@@ -719,7 +804,9 @@ def hebing_xy():
         #draw_ok_edge(ok_result)
         #draw_ok_edge(not_ok_edges)
     #ok_result.extend(not_ok_edges)
-    for x in ok_result:
+    draw_ok_edge(ok_result)
+    not_ok_edges.extend(ok_result)
+    for x in not_ok_edges:
         b = list(x)
         b.append(x[0])
         st = b[0]
@@ -731,7 +818,6 @@ def hebing_xy():
                 print(dist, ang)
                 print(st, b[i+1],b[i])
                 #draw_ok_edge([x])
-
 
 
 

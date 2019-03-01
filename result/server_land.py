@@ -4,33 +4,32 @@ import torch
 import numpy as np
 from skimage import io
 import os
-from sklearn.cluster import KMeans,DBSCAN
+from sklearn.cluster import KMeans
 from matplotlib import pyplot as plt
-import time
 import cv2
 from result import instance_handler,utils,shape_utils
-import json
 from models.native_senet import se_resnext50_32x4d
 from torch import nn
 from torchvision import transforms
 import json
 from PIL import Image
-from libKMCUDA import kmeans_cuda
 from models.model_instance_dsl import InstanceModel
-
-
+from libKMCUDA import kmeans_cuda
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 result_dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result'
 n_class = 1
 
 max_detect = 10
 
-model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=False,num_filter=32)
-print(model)
+#model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=True,num_filter=32)
+#model.load_state_dict(torch.load('../net2_524000.pth'))
+
+model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=True,num_filter=32)
 #model = InstanceModel()
 
-#model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net3_168000.pth'))
+#model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net3_72000.pth'))
 model.load_state_dict(torch.load('../net2_406000.pth'))
+
 model.cuda()
 model.eval()
 
@@ -58,7 +57,7 @@ def cluster(sem_seg_prediction, ins_seg_prediction,
     sem_seg_prediction = sem_seg_prediction*255
     sem_seg_prediction = sem_seg_prediction.astype(np.uint8)
     sem_seg_prediction = np.squeeze(sem_seg_prediction,0)
-    sem_seg_prediction[sem_seg_prediction<100] = 0
+    sem_seg_prediction[sem_seg_prediction<150] = 0
 
     embeddings = ins_seg_prediction
 
@@ -67,18 +66,15 @@ def cluster(sem_seg_prediction, ins_seg_prediction,
 
     embeddings = np.stack([embeddings[:, :, i][sem_seg_prediction != 0]
                            for i in range(embeddings.shape[2])], axis=1)
-
-    #km = KMeans(n_clusters=n_objects_prediction,n_init=15, max_iter=500,n_jobs=-1).fit(embeddings)
-
-    #labels = km.labels_
-
-    centroids, labels = kmeans_cuda(embeddings, n_objects_prediction, tolerance=0.001, init="k-means++",
-                yinyang_t=0.1, metric="L2", average_distance=False,
-                device=1, verbosity=0)
-
+    if n_objects_prediction>1:
+        centroids, labels = kmeans_cuda(embeddings, n_objects_prediction, tolerance=0.001, init="k-means++",
+                                        yinyang_t=0.1, metric="L2", average_distance=False,
+                                        device=1, verbosity=0)
+    else:
+        labels = np.zeros(embeddings.shape[0])
 
     #labels = DBSCAN(eps=0.2,min_samples=100, n_jobs=-1).fit_predict(embeddings)
-
+    print(labels)
 
     instance_mask = np.zeros((seg_height, seg_width), dtype=np.uint8)
 
@@ -116,16 +112,16 @@ def get_num(pth):
     pd = np.max(prop)
     return int(lbs[idx])
 
-def run():
+def run(task_drs,save_drs):
 
-    dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/land/d58200e3-2b29-4b99-b8ed-791031dd9b06'
-    for d in glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/*.*'):
+
+    for d in glob.glob(os.path.join(save_drs,'*.*')):
         os.remove(d)
-    x_min, x_max, y_min, y_max = utils.get_xy(dr)
+    x_min, x_max, y_min, y_max = utils.get_xy(task_drs)
     result = dict()
     handler_num = 0
     with torch.no_grad():
-        for x in sorted(glob.glob(os.path.join(dr,'*.png'))):
+        for x in sorted(glob.glob(os.path.join(task_drs,'*.png'))):
             current_loc = x.split('.')[0].split('/')[-1].split('_')
             x_offset, y_offset = int(current_loc[1]), int(current_loc[2])
             pading_x = (x_offset-x_min)*256
@@ -133,37 +129,28 @@ def run():
 
             ig_name = x.split('/')[-1]
             ig_dr_name = x.split('/')[-2]
-            dt_seg = os.path.join(result_dr,ig_dr_name+'_seg')
-            dt_ins = os.path.join(result_dr, ig_dr_name + '_ins')
-            if not os.path.exists(dt_ins):
-                os.makedirs(dt_ins)
-                os.makedirs(dt_seg)
-            dt_ins = os.path.join(dt_ins,ig_name)
-            dt_seg = os.path.join(dt_seg,ig_name)
 
-            tt = cv2.imread(x)
-            #tt = np.zeros(shape=(256,256,3),dtype=np.uint8)
+
+            #tt = cv2.imread(x)
+            tt = np.zeros(shape=(256,256,3),dtype=np.uint8)
             org_imgs = io.imread(x)[:,:,0:3]
             org_img = (org_imgs - [123.15, 115.90, 103.06]) / 225.0
             org_img = np.expand_dims(org_img,0)
             img = np.transpose(org_img, axes=[0, 3, 1, 2])
             img = torch.from_numpy(img).float()
             img = torch.autograd.Variable(img.cuda())
-            t = time.time()
             sem_seg_out, ins_seg_out = model(img)
-
             sem_seg_out = torch.sigmoid(sem_seg_out)
             sem_seg_out = sem_seg_out.cpu().detach().numpy()
             ins_seg_out = ins_seg_out.cpu().detach().numpy()
             ins_seg_out = np.squeeze(ins_seg_out,0)
             sem_seg_out = np.squeeze(sem_seg_out,0)
-            t = time.time()
+
             ins_cls_out = get_num(x)
-            print(ins_cls_out,time.time() - t)
+
             if ins_cls_out>0:
-                try:
+                if True:
                     _, instance_mask, _ = cluster(sem_seg_out, ins_seg_out, ins_cls_out)
-                    print(time.time() - t)
                     rt = []
                     lbs_20 = []
                     lbs_98 = []
@@ -173,9 +160,9 @@ def run():
                         num = instance_handler.get_ct_num(tt,k,pading_x,pading_y)
                         print(num)
                         #num , ct = instance_handler.get_counter(k,pading_x,pading_y)
-                        if num>20 and num<98:
+                        if num>20 and num<60:
                             lbs_20.append(i+1)
-                        elif num>=98:
+                        elif num>=60:
                             lbs_98.append(i+1)
 
 
@@ -216,26 +203,35 @@ def run():
                     seg[np.where(tt[:, :, 0] > 0)] = 0
                     plt.subplot(223)
                     plt.imshow(seg)
-
                     plt.subplot(224)
                     plt.imshow(cl)
-                    plt.show()
+                    #plt.show()
                     #plt.savefig('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'+ig_name)
-                    cv2.imwrite('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'+ig_name,seg)
-                except:
-                    pass
+                    cv2.imwrite(os.path.join(save_drs,ig_name),seg)
+
+
+if __name__ == '__main__':
+    task_name = 'eb2bec6b-9e6a-49d4-aee8-41f120fe5e59'
+    root_dr = '/home/dsl/fsdownload/land'
+    save_dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'
+    tmp_dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result'
+
+    for task_name in os.listdir('/home/dsl/fsdownload/land'):
+        mask_dr = os.path.join(tmp_dr,task_name+'_seg.jpg')
+        img_dr = os.path.join(tmp_dr,task_name+'.jpg')
+        result_img_dr = os.path.join(tmp_dr,task_name+'_ok.jpg')
+
+        task_dr = os.path.join(root_dr,task_name)
+        run(task_dr,save_dr)
+        utils.hebing_image(task_dr,img_dr)
+        utils.hebing_image(save_dr,mask_dr,xy_root=task_dr)
+        utils.get_counter(mask_dr,img_dr,result_img_dr)
 
 
 
 
 
 
-        print('handler_num',handler_num)
-
-        with open('result_handler2.json','w') as f:
-            print(len(result))
-            f.write(json.dumps(result))
-            f.flush()
 
 
 
@@ -248,5 +244,3 @@ def run():
 
 
 
-
-run()

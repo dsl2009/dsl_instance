@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils.cluster import kms_cluster
+from torch.nn import functional as F
 import time
 
 def gather_feat(feat, ind, mask=None):
@@ -127,7 +127,7 @@ def neg_loss(preds, gt):
     pos_inds = gt.eq(1)
     neg_inds = gt.lt(1)
     neg_weights = torch.pow(1 - gt[neg_inds], 4)
-
+    print(neg_weights)
     loss = 0
     pos_pred = preds[pos_inds]
     neg_pred = preds[neg_inds]
@@ -230,9 +230,26 @@ def cluster_loss(tages, masks,dert_v=1,dert_d=1):
     distance_loss = sum(distance_v)/(sum(nm2)*(sum(nm2)-1))
     return var_loss+distance_loss
 
+def weight_be_loss(pred, target, weight):
+    pred = pred.squeeze(1)
+    target = target.squeeze(1)
+    B, H, W = pred.size()
+    total_loss =0
+    for b in range(B):
+        loss = F.binary_cross_entropy_with_logits(input=pred[b], target=target[b], pos_weight=torch.tensor(weight[b]))
+        total_loss = total_loss+loss
+    total_loss = total_loss/B
+    return total_loss
 
 
 
+
+
+def tt():
+    target = torch.tensor([[1,0,1,1,1,1]]).float()
+    log = torch.tensor([[1.0, 1, 1,1,1,1]]).float()
+    print(F.binary_cross_entropy_with_logits(input=log, target=target, pos_weight=torch.tensor([6.0]),reduction='mean'))
+    print(neg_loss(log, target))
 
 
 
@@ -252,5 +269,4 @@ def cluster_loss(tages, masks,dert_v=1,dert_d=1):
 
 
 if __name__ == '__main__':
-    for x in range(1,5):
-        print(x)
+    tt()

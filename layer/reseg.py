@@ -94,17 +94,20 @@ class ReSeg(nn.Module):
         # Encoder
         # BaseCNN
         first_skip, second_skip, x_enc = self.cnn(x)
-        #print(first_skip.size(),second_skip.size(),x_enc.size())
+        print( first_skip.size(), second_skip.size(), x_enc.size())
 
         # ReNets
         x_enc = self.renet1(x_enc)
+
         x_enc = self.renet2(x_enc)
+        print(x_enc.size())
 
         # Decoder
         x_dec = self.relu1(self.upsampling1(x_enc))
         x_dec = torch.cat((x_dec, second_skip), dim=1)
         x_dec = self.relu2(self.upsampling2(x_dec))
         x_dec = torch.cat((x_dec, first_skip), dim=1)
+        print(x_dec.size())
 
         # Semantic Segmentation
         sem_seg_out = self.sem_seg_output(x_dec)
@@ -116,9 +119,10 @@ class ReSeg(nn.Module):
             ins_seg_out = None
 
         # Instance Counting
-        ins_cls_out = self.ins_cls_cnn(x_enc)
+        #ins_cls_out = self.ins_cls_cnn(x_enc)
 
-        return sem_seg_out, ins_seg_out, ins_cls_out
+        return sem_seg_out, ins_seg_out
+
 if __name__ == '__main__':
     a = torch.randn(2,3,256,256)
     md = ReSeg(n_classes=2,pretrained=False)

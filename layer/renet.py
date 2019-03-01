@@ -33,7 +33,7 @@ class ReNet(nn.Module):
     """
 
     def __init__(self, n_input, n_units, patch_size=(1, 1),
-                 use_coordinates=False, usegpu=True):
+                 use_coordinates=True, usegpu=True):
         super(ReNet, self).__init__()
 
         self.use_coordinates = use_coordinates

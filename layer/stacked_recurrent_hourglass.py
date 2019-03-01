@@ -186,6 +186,6 @@ class StackedRecurrentHourglass(nn.Module):
         else:
             ins_seg_out = None
 
-        ins_count_out = self.instance_count(x)
+        #ins_count_out = self.instance_count(x)
 
-        return sem_seg_out, ins_seg_out, ins_count_out
+        return sem_seg_out, ins_seg_out

@@ -125,6 +125,7 @@ class SkipVGG16(nn.Module):
         self.model.load_state_dict(torch.load('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/download/vgg16-397923af.pth'),strict=False)
 
     def forward(self, x):
+
         if self.use_coordinates:
             outs = self.model(x)
             out = [o for i, o in enumerate(outs) if i in self.outputs]
@@ -133,6 +134,7 @@ class SkipVGG16(nn.Module):
         else:
             out = []
             for i, layer in enumerate(list(self.model.children())[0]):
+
                 x = layer(x)
                 if i in self.outputs:
                     out.append(x)

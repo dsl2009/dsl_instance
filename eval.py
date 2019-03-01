@@ -6,7 +6,7 @@ from skimage import io
 import os
 from sklearn.cluster import KMeans,DBSCAN
 from matplotlib import pyplot as plt
-from scipy.spatial.distance import pdist
+import time
 from models.native_senet import se_resnext50_32x4d
 from torch import nn
 from torchvision import transforms
@@ -19,7 +19,7 @@ n_class = 1
 max_detect = 10
 
 model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=True,num_filter=32)
-model.load_state_dict(torch.load('net2_44000.pth'))
+model.load_state_dict(torch.load('net2_524000.pth'))
 model.cuda()
 model.eval()
 
@@ -107,7 +107,7 @@ def get_num(pth):
 
 def run():
     with torch.no_grad():
-        for x in glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/land/38220485-2708-4b9a-96f1-ebc9bbb1ba21/*.png'):
+        for x in glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/land/0df7896e-1c33-471a-9460-807c51f90ced/*.png'):
 
             ig_name = x.split('/')[-1]
             ig_dr_name = x.split('/')[-2]
@@ -127,7 +127,11 @@ def run():
             img = np.transpose(org_img, axes=[0, 3, 1, 2])
             img = torch.from_numpy(img).float()
             img = torch.autograd.Variable(img.cuda())
+
+            t = time.time()
             sem_seg_out, ins_seg_out, ins_cls_out = model(img)
+            print(time.time()-t)
+
             sem_seg_out = torch.sigmoid(sem_seg_out)
             sem_seg_out = sem_seg_out.cpu().detach().numpy()
             ins_seg_out = ins_seg_out.cpu().detach().numpy()

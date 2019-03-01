@@ -66,5 +66,4 @@ def gen_data():
             #io.imsave(os.path.join(pth,name),direct)
 
 
-gen_data()
 
