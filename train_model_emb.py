@@ -10,18 +10,21 @@ import numpy as np
 from torch import optim
 import os
 from torch.nn import functional as F
-from models.res_instance import InstanceModel
+from models.widresnet_seg_128 import SegModel
 import time
+from layer.coord_conv import  CoordConvNet
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 n_class = 1
 
 max_detect = 10
 
 #model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=True, num_filter=32)
-model = InstanceModel()
+model = SegModel()
+model.cnn.load_state_dict(torch.load('/home/dsl/all_check/resnet50-19c8e357.pth'),strict=False)
+#model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net_res_64_3000.pth'))
 model.cuda()
 
-criterion_discriminative = DiscriminativeLoss(delta_var=0.5, delta_dist=1.0, norm=2, usegpu=True)
+criterion_discriminative = DiscriminativeLoss(delta_var=0.5, delta_dist=2.5, norm=2, usegpu=True)
 criterion_dice = DiceLoss(optimize_bg=True, smooth=1e-5)
 criterion_mse = nn.MSELoss(reduction='sum')
 criterion_be = nn.BCEWithLogitsLoss()
@@ -29,28 +32,28 @@ criterion_be = nn.BCEWithLogitsLoss()
 criterion_dice.cuda()
 criterion_mse.cuda()
 
-data_gener = data_gen.get_land_seg(batch_size=6, max_detect=10)
+data_gener = data_gen.get_land_seg(batch_size=12, max_detect=max_detect, output_size=[128,128])
 
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9,weight_decay=1e-5)
 
-stm = optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=50000, gamma=0.7)
+stm = optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=60000, gamma=0.7)
 
 
 
 
 def run():
-    for x in range(1000000):
+    for x in range(10000000):
         org_img, instance_mask, seg_mask, num_obj_org = next(data_gener)
 
-        ww1 = np.sum(seg_mask, (1,2,3))
-        pos_w = ww1/(65536-ww1)
-        pos_w = np.clip(pos_w,1, 20)
+        #ww1 = np.sum(seg_mask, (1,2,3))
+        #pos_w = ww1/(65536-ww1)
+        #pos_w = np.clip(pos_w,1, 20)
 
 
 
-        w1 = np.sum(seg_mask)
-        w2 = w1/(65536*6 -w1)
-        w = min(w2, 20)
+        #w1 = np.sum(seg_mask)
+        #w2 = w1/(65536*6 -w1)
+        #w = min(w2, 20)
 
 
 
@@ -68,6 +71,9 @@ def run():
         img, instance_mask = torch.autograd.Variable(img.cuda()), torch.autograd.Variable(instance_mask.cuda())
         seg_mask, num_obj = torch.autograd.Variable(seg_mask.cuda()), torch.autograd.Variable(num_obj.cuda())
 
+        #instance_mask =  F.interpolate(instance_mask, scale_factor=0.25)
+        #seg_mask = F.interpolate(seg_mask, scale_factor=0.25)
+
         sem_seg_out, ins_seg_out = model(img)
 
         discri_loss = criterion_discriminative(ins_seg_out,instance_mask,(max_detect*num_obj_org).astype(np.int32), max_detect)
@@ -76,19 +82,20 @@ def run():
 
         #be_loss = criterion_be(sem_seg_out,seg_mask)
         #be_loss = neg_loss(sem_seg_out, seg_mask)
+
         be_loss = F.binary_cross_entropy_with_logits(input=sem_seg_out, target=seg_mask)
         #print(weight_be_loss(sem_seg_out, seg_mask, pos_w))
 
-        totoal_loss =dice_loss*10+discri_loss+be_loss
+        totoal_loss =dice_loss+discri_loss+be_loss
 
         optimizer.zero_grad()
         totoal_loss.backward()
         optimizer.step()
 
-        if x%10000==0:
-            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/net_res_' + str(x) + '.pth')
+        if x%2000==0:
+            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/land_res_128_' + str(x) + '.pth')
 
-        if x%10 == 0:
+        if x%1 == 0:
             if x>5:
                 t1 = time.time()-t
                 print(t1, x, discri_loss.item(), dice_loss.item(),be_loss.item())

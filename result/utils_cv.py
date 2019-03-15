@@ -179,4 +179,6 @@ def handler():
 
 
 if __name__ == '__main__':
-    convert()
+    get_counter(mask_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/mask.jpg',
+                img_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/org.jpg',
+                )

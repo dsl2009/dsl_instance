@@ -134,10 +134,13 @@ class ReNet(nn.Module):
 
         x = x.view(b * n_height, n_width, n_filters)
         # x : b * h, w, nf
+
         if hor_or_ver == 'hor':
             x, _ = self.rnn_hor(x)
+
         elif hor_or_ver == 'ver':
             x, _ = self.rnn_ver(x)
+
 
         x = x.contiguous()
         x = x.view(b, n_height, n_width, -1)

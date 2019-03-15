@@ -66,8 +66,7 @@ def calculate_variance_term(pred, gt, means, n_objects, delta_v, norm=2):
     # bs, n_loc, n_instances, n_filters
     gt = gt.unsqueeze(3).expand(bs, n_loc, n_instances, n_filters)
 
-    _var = (torch.clamp(torch.norm((pred - means), norm, 3) -
-                        delta_v, min=0.0) ** 2) * gt[:, :, :, 0]
+    _var = (torch.clamp(torch.norm((pred - means), norm, 3) -delta_v, min=0.0) ** 2) * gt[:, :, :, 0]
 
     var_term = 0.0
     for i in range(bs):
@@ -108,6 +107,7 @@ def calculate_distance_term(means, n_objects, delta_d, norm=2, usegpu=True):
 
         _dist_term_sample = torch.sum(
             torch.clamp(margin - _norm, min=0.0) ** 2)
+
         _dist_term_sample = _dist_term_sample / \
             (_n_objects_sample * (_n_objects_sample - 1))
         dist_term += _dist_term_sample
@@ -138,6 +138,7 @@ def discriminative_loss(input, target, n_objects,
        target: bs, n_instances, fmap, fmap
        n_objects: bs"""
 
+
     alpha = beta = 1.0
     gamma = 0.001
 
@@ -162,6 +163,7 @@ def discriminative_loss(input, target, n_objects,
 
 
     reg_term = calculate_regularization_term(cluster_means, n_objects, norm)
+
 
     loss = alpha * var_term + beta * dist_term + gamma * reg_term
 

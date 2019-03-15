@@ -2,7 +2,7 @@ import cv2
 from matplotlib import pyplot as plt
 import numpy as np
 import json
-from result import utils
+from result import utils_cv
 from skimage.measure import find_contours
 from scipy.interpolate import splprep, splev
 from result import shape_utils
@@ -259,7 +259,7 @@ def draw_line(imgs, edges):
 
 
 
-def get_ct_num(imgs, mask, pad_x, pad_y):
+def get_ct_num(mask, pad_x, pad_y):
     cout = []
     mask[np.where(mask > 0)] = 255
     mask = np.asarray(mask, np.uint8)

@@ -7,7 +7,7 @@ import os
 from matplotlib import pyplot as plt
 import glob
 from loss.loss_utils import *
-
+from layer.coord_conv import CoordConv
 from loss import loss
 from layer import renet
 from models import resnet
@@ -16,14 +16,19 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, inplanes, planes, stride=1, dilation=1):
+    def __init__(self, inplanes, planes, stride=1, dilation=1, use_coord=1):
         super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
+        if use_coord:
+            ConvModel = CoordConv
+        else:
+            ConvModel = nn.Conv2d
+
+        self.conv1 = ConvModel(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, dilation=dilation,
+        self.conv2 = ConvModel(planes, planes, kernel_size=3, stride=stride, dilation=dilation,
                                padding=dilation, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, planes * 4, kernel_size=1, bias=False)
+        self.conv3 = ConvModel(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes * 4)
         self.relu = nn.ReLU(inplace=True)
         self.stride = stride
@@ -50,15 +55,19 @@ class Bottleneck(nn.Module):
 
 
 class InstanceModel(nn.Module):
-    def __init__(self):
+    def __init__(self, use_coord=1):
         super(InstanceModel, self).__init__()
         self.n_classes = 1
+        if use_coord:
+            ConvModel = CoordConv
+        else:
+            ConvModel = nn.Conv2d
 
         self.down1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1, stride=1,bias=False),
+            ConvModel(3, 64, kernel_size=3, padding=1, stride=1,bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1, stride=1),
+            ConvModel(64, 64, kernel_size=3, padding=1, stride=1),
             nn.BatchNorm2d(64),
             nn.ReLU(),
 
@@ -66,7 +75,7 @@ class InstanceModel(nn.Module):
 
 
         self.down2 = nn.Sequential(
-            nn.Conv2d(64, 256, kernel_size=3, padding=1, stride=2),
+            ConvModel(64, 256, kernel_size=3, padding=1, stride=2,bias=False),
             nn.BatchNorm2d(256),
             Bottleneck(256, 64),
             Bottleneck(256, 64),
@@ -76,7 +85,7 @@ class InstanceModel(nn.Module):
         )
 
         self.down3 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=3, padding=1, stride=2),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1, stride=2,bias=False),
             nn.BatchNorm2d(512),
             Bottleneck(512, 128),
             Bottleneck(512, 128),
@@ -86,8 +95,8 @@ class InstanceModel(nn.Module):
 
 
 
-        self.renet1 = renet.ReNet(512, 128, use_coordinates=False)
-        self.renet2 = renet.ReNet(256, 128, use_coordinates=False)
+        self.renet1 = renet.ReNet(512, 128, use_coordinates=True)
+        self.renet2 = renet.ReNet(256, 128, use_coordinates=True)
 
         self.upsampling1 = nn.ConvTranspose2d(256, 100,
                                               kernel_size=(2, 2),
@@ -97,9 +106,9 @@ class InstanceModel(nn.Module):
                                               100, kernel_size=(2, 2),
                                               stride=(2, 2))
 
-        self.sem_seg_output = nn.Conv2d(164,self.n_classes, kernel_size=(1, 1),stride=(1, 1))
+        self.sem_seg_output = ConvModel(164,self.n_classes, kernel_size=(1, 1),stride=(1, 1))
 
-        self.ins_seg_output = nn.Conv2d(164, 32, kernel_size=(1, 1),stride=(1, 1))
+        self.ins_seg_output = ConvModel(164, 32, kernel_size=(1, 1),stride=(1, 1))
 
     def forward(self, inputs):
         first_skip = self.down1(inputs)
