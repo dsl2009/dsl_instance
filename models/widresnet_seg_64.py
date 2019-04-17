@@ -6,7 +6,7 @@ from layer import renet
 class SegModel(nn.Module):
     def __init__(self):
         super(SegModel, self).__init__()
-        self.cnn = resnet.resnet50(pretrained=False)
+        self.cnn = resnet.resnet101(pretrained=False)
         self.cov1 = nn.Sequential(
             nn.Conv2d(2048, 512, kernel_size=1, stride=1,bias=False),
             nn.BatchNorm2d(512),

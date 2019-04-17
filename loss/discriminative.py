@@ -3,7 +3,9 @@ from torch.nn.modules.loss import  _Loss
 from torch.autograd import Variable
 import torch
 import numpy as np
-
+import time
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 def calculate_means(pred, gt, n_objects, max_n_objects, usegpu):
     """pred: bs, height * width, n_filters
@@ -24,6 +26,7 @@ def calculate_means(pred, gt, n_objects, max_n_objects, usegpu):
 
     means = []
     for i in range(bs):
+
         _n_objects_sample = n_objects[i]
 
         # n_loc, n_objects, n_filters
@@ -34,11 +37,16 @@ def calculate_means(pred, gt, n_objects, max_n_objects, usegpu):
 
         _mean_sample = _pred_masked_sample.sum(
             0) / _gt_expanded_sample.sum(0)  # n_objects, n_filters
+
+
         if (max_n_objects - _n_objects_sample) != 0:
             n_fill_objects = int(max_n_objects - _n_objects_sample)
             _fill_sample = torch.zeros(n_fill_objects, n_filters)
+
             if usegpu:
                 _fill_sample = _fill_sample.cuda()
+
+
             _fill_sample = Variable(_fill_sample)
             _mean_sample = torch.cat((_mean_sample, _fill_sample), dim=0)
         means.append(_mean_sample)
@@ -86,6 +94,7 @@ def calculate_distance_term(means, n_objects, delta_d, norm=2, usegpu=True):
 
     dist_term = 0.0
     for i in range(bs):
+
         _n_objects_sample = int(n_objects[i])
 
         if _n_objects_sample <= 1:
@@ -111,7 +120,6 @@ def calculate_distance_term(means, n_objects, delta_d, norm=2, usegpu=True):
         _dist_term_sample = _dist_term_sample / \
             (_n_objects_sample * (_n_objects_sample - 1))
         dist_term += _dist_term_sample
-
     dist_term = dist_term / bs
 
     return dist_term
@@ -187,3 +195,4 @@ class DiscriminativeLoss(_Loss):
         return discriminative_loss(input, target, n_objects, max_n_objects,
                                    self.delta_var, self.delta_dist, self.norm,
                                    self.usegpu)
+

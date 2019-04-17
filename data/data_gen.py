@@ -2,6 +2,10 @@ from dsl_data import aichanellger,BigLand,xair_guoshu
 import random
 import numpy as np
 from matplotlib import pyplot as plt
+from utils import edge_handler
+from data.data_sets import LineArea
+
+
 def get_land(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256],output_size = [64,64]):
     data_set = BigLand.BigLandMask(image_size=image_size, output_size=output_size)
     idx = list(range(data_set.len()))
@@ -170,7 +174,126 @@ def get_tree_seg(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256
                 index = 0
 
 
+def get_edge_seg(batch_size):
+    Md = LineArea()
+    idx = list(range(Md.len()))
+    b = 0
+    index = 0
+    while True:
+        if True:
+            if index >= Md.len():
+                index = 0
+            if index == 0:
+                random.shuffle(idx)
+            try:
+                img,  instance_mask = Md.pull_item(index)
+            except:
+                index += 1
+                continue
+
+            if img is None:
+                index+=1
+                continue
+            img = img/255.0
+            instance_mask = instance_mask/255.0
+            if b== 0:
+                images = np.zeros(shape=[batch_size,1, 256, 256],dtype=np.float32)
+                seg_masks = np.zeros(shape=[batch_size,1, 256, 256], dtype=np.float32)
+                images[b, 0, :,:] = img
+                seg_masks[b, 0,:,:] = instance_mask
+                b=b+1
+            else:
+                images[b, 0, :, :] = img
+                seg_masks[b, 0, :, :] = instance_mask
+                b = b + 1
+            index = index + 1
+
+            if b>=batch_size:
+                yield [images,seg_masks]
+                b = 0
+            if index>= Md.len():
+                index = 0
+
+
+def get_land_edge(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256],output_size = [64,64]):
+    data_set = BigLand.BigLand(image_size=image_size)
+    idx = list(range(data_set.len()))
+    print(data_set.len())
+    b = 0
+    index = 0
+    while True:
+        if True:
+            if index>= data_set.len():
+                index = 0
+            if is_shuff and index==0:
+                random.shuffle(idx)
+            try:
+                img,  instance_mask, edge_mask = data_set.pull_item(idx[index])
+                if img is None:
+                    index = index + 1
+                    continue
+            except:
+                index = index+1
+                continue
+            img = (img - [123.15, 115.90, 103.06])/255.0
+            instance_mask = instance_mask/255.0
+            edge_mask = edge_mask / 255.0
+
+            if b== 0:
+                images = np.zeros(shape=[batch_size,image_size[0],image_size[1],3],dtype=np.float32)
+                instance_masks = np.zeros(shape=[batch_size,output_size[0],output_size[1], 1], dtype=np.float32)
+                edge_masks = np.zeros(shape=[batch_size,output_size[0],output_size[1], 1], dtype=np.float32)
+
+                images[b] = img
+                instance_masks[b, :, :,0] = instance_mask
+                edge_masks[b, :,:,0] = edge_mask
+                b=b+1
+                index = index + 1
+            else:
+                images[b] = img
+                instance_masks[b, :, :, 0] = instance_mask
+                edge_masks[b, :, :, 0] = edge_mask
+                b = b + 1
+                index = index + 1
+            if b>=batch_size:
+                yield [images,instance_masks,edge_masks]
+                b = 0
+
+            if index>= data_set.len():
+                index = 0
+
+def get_edge_seg_mask(batch_size):
+    b = 0
+    index = 0
+    while True:
+        if True:
+            try:
+                img,  instance_mask = edge_handler.gen_pic()
+            except:
+                continue
+            img = img/255.0
+            instance_mask = instance_mask/255.0
+            if b== 0:
+                images = np.zeros(shape=[batch_size,1, 256, 256],dtype=np.float32)
+                seg_masks = np.zeros(shape=[batch_size,1, 256, 256], dtype=np.float32)
+                images[b, 0, :,:] = img
+                seg_masks[b, 0,:,:] = instance_mask
+                b=b+1
+            else:
+                images[b, :, :, :] = img
+                seg_masks[b, 0, :, :] = instance_mask
+                b = b + 1
+            if b>=batch_size:
+                yield [images,seg_masks]
+                b = 0
+
+
 if __name__ == '__main__':
-    d = get_land_seg(batch_size=4)
+    d = get_edge_seg(batch_size=4)
     for x in range(1000):
-        kk = next(d)
+        images,seg_masks = next(d)
+        plt.subplot(121)
+        plt.imshow(images[0,0,:,:])
+        plt.subplot(122)
+        plt.imshow(seg_masks[0, 0, :, :])
+        plt.show()

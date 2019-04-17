@@ -15,9 +15,11 @@ def cluster(data):
     old_points = data
     offset = 1.0
     it = 0
-    while offset > 1e-5:
+    offsets = []
+    while offset > 1e-7:
         points = torch.unsqueeze(old_points, 2)
-        distance = torch.sum(torch.pow((points - data_te) / 1.5, 2), dim=1)
+
+        distance = torch.sum(torch.pow((points - data_te) / 1.0, 2), dim=1)
         g_distance = torch.exp(-distance)
         num = torch.sum(torch.unsqueeze(g_distance, 2) * data_e, dim=1)
         denom = torch.sum(g_distance, dim=1)
@@ -25,12 +27,14 @@ def cluster(data):
         max_diff = torch.max(torch.sqrt(torch.sum(torch.pow(new_points - old_points, 2), dim=1)))
         offset = max_diff.item()
         old_points = new_points
-        del distance,g_distance,num
-        it+=1
 
-    print(it)
+        del distance,g_distance,num
+        if it>10 and offsets[-10]<=offset<1e-5:
+            break
+        it += 1
+        offsets.append(offset)
     dt = new_points.cpu().detach().numpy()
-    dt = dt[:, 0] / (dt[:, 1] * np.sum(dt, axis=1))
+    dt = dt[:, 0] / (dt[:, 1]*np.sum(dt, axis=1))
     dt = np.asarray(dt, np.float16)
     dt, label = np.unique(dt, return_inverse=True)
     return len(dt),label

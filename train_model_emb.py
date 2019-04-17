@@ -1,8 +1,7 @@
 from layer.reseg import ReSeg
-from layer.stacked_recurrent_hourglass import StackedRecurrentHourglass as SRecHg
+from matplotlib import pyplot as plt
 from loss.dice import DiceLoss, DiceCoefficient
 from loss.discriminative import DiscriminativeLoss
-from loss.loss_utils import neg_loss,weight_be_loss
 from torch import nn
 from data import data_gen
 import torch
@@ -13,6 +12,7 @@ from torch.nn import functional as F
 from models.widresnet_seg_128 import SegModel
 import time
 from layer.coord_conv import  CoordConvNet
+torch.backends.cudnn.benchmark = True
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 n_class = 1
 
@@ -23,44 +23,35 @@ model = SegModel()
 model.cnn.load_state_dict(torch.load('/home/dsl/all_check/resnet50-19c8e357.pth'),strict=False)
 #model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net_res_64_3000.pth'))
 model.cuda()
-
-criterion_discriminative = DiscriminativeLoss(delta_var=0.5, delta_dist=2.5, norm=2, usegpu=True)
+criterion_discriminative = DiscriminativeLoss(delta_var=0.5, delta_dist=2.0, norm=2, usegpu=True)
 criterion_dice = DiceLoss(optimize_bg=True, smooth=1e-5)
 criterion_mse = nn.MSELoss(reduction='sum')
 criterion_be = nn.BCEWithLogitsLoss()
-
 criterion_dice.cuda()
 criterion_mse.cuda()
-
-data_gener = data_gen.get_land_seg(batch_size=12, max_detect=max_detect, output_size=[128,128])
-
+data_gener = data_gen.get_land_seg(batch_size=8, max_detect=max_detect, output_size=[128,128])
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9,weight_decay=1e-5)
-
 stm = optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=60000, gamma=0.7)
 
 
 
 
 def run():
+
     for x in range(10000000):
         org_img, instance_mask, seg_mask, num_obj_org = next(data_gener)
 
-        #ww1 = np.sum(seg_mask, (1,2,3))
-        #pos_w = ww1/(65536-ww1)
-        #pos_w = np.clip(pos_w,1, 20)
 
-
-
-        #w1 = np.sum(seg_mask)
-        #w2 = w1/(65536*6 -w1)
-        #w = min(w2, 20)
-
+        point_mask = seg_mask
+        count_neg = np.sum(1. - point_mask)
+        count_pos = np.sum(point_mask)
+        beta = count_neg / (count_neg + count_pos)
+        pos_weight_point = beta / (1 - beta)
 
 
         img = np.transpose(org_img, axes=[0, 3, 1, 2])
         instance_mask = np.transpose(instance_mask, axes=[0, 3, 1, 2])
         seg_mask = np.transpose(seg_mask, axes=[0, 3, 1, 2])
-        #num_obj = np.reshape(num_obj_org,(-1,1))
         num_obj = num_obj_org
 
         img = torch.from_numpy(img)
@@ -71,20 +62,19 @@ def run():
         img, instance_mask = torch.autograd.Variable(img.cuda()), torch.autograd.Variable(instance_mask.cuda())
         seg_mask, num_obj = torch.autograd.Variable(seg_mask.cuda()), torch.autograd.Variable(num_obj.cuda())
 
-        #instance_mask =  F.interpolate(instance_mask, scale_factor=0.25)
-        #seg_mask = F.interpolate(seg_mask, scale_factor=0.25)
 
+        t = time.time()
         sem_seg_out, ins_seg_out = model(img)
 
+
+
         discri_loss = criterion_discriminative(ins_seg_out,instance_mask,(max_detect*num_obj_org).astype(np.int32), max_detect)
+
         dice_loss = criterion_dice(sem_seg_out, seg_mask)
-        #mse_loss = criterion_mse(num_obj,ins_cls_out)
 
-        #be_loss = criterion_be(sem_seg_out,seg_mask)
-        #be_loss = neg_loss(sem_seg_out, seg_mask)
 
-        be_loss = F.binary_cross_entropy_with_logits(input=sem_seg_out, target=seg_mask)
-        #print(weight_be_loss(sem_seg_out, seg_mask, pos_w))
+        be_loss = F.binary_cross_entropy_with_logits(input=sem_seg_out, target=seg_mask,weight=torch.tensor(pos_weight_point))
+
 
         totoal_loss =dice_loss+discri_loss+be_loss
 
@@ -93,12 +83,11 @@ def run():
         optimizer.step()
 
         if x%2000==0:
-            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/land_res_128_' + str(x) + '.pth')
+            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/land_res_edge_128_' + str(x) + '.pth')
 
         if x%1 == 0:
-            if x>5:
-                t1 = time.time()-t
-                print(t1, x, discri_loss.item(), dice_loss.item(),be_loss.item())
+            t1 = time.time()-t
+            print(t1, x, discri_loss.item(), dice_loss.item(),be_loss.item())
             t = time.time()
         stm.step(x)
 

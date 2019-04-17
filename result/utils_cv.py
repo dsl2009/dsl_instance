@@ -6,6 +6,15 @@ import cv2
 from matplotlib import pyplot as plt
 from result import instance_handler,shape_utils
 from skimage import measure
+from models.edge_model import Generater
+import torch
+gen_mod = Generater(1)
+gen_mod.load_state_dict(torch.load('../mask_optm.pth'))
+gen_mod.cuda()
+gen_mod.eval()
+
+
+
 class MyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.ndarray):
@@ -44,14 +53,17 @@ def hebing_image(result_dr, sv_image,xy_root=None):
     h = (y_max-y_min+1)*256
     ig = np.zeros(shape=(h, w, 3),dtype=np.uint8)
     for pth in glob.glob(os.path.join(result_dr, '*.png')):
-        img = cv2.imread(pth)
-        current_loc = pth.split('.')[0].split('/')[-1].split('_')
-        c_x, c_y, c_z = int(current_loc[1]), int(current_loc[2]), int(current_loc[0])
+        try:
+            img = cv2.imread(pth)
+            current_loc = pth.split('.')[0].split('/')[-1].split('_')
+            c_x, c_y, c_z = int(current_loc[1]), int(current_loc[2]), int(current_loc[0])
 
-        start_x = c_x -x_min
-        start_y = c_y - y_min
-        print(start_y*256+256)
-        ig[start_y*256:start_y*256+256, start_x*256:start_x*256+256,:] = img[:,:, 0:3]
+            start_x = c_x -x_min
+            start_y = c_y - y_min
+            print(start_y*256+256)
+            ig[start_y*256:start_y*256+256, start_x*256:start_x*256+256,:] = img[:,:, 0:3]
+        except:
+            pass
     cv2.imwrite(sv_image,ig)
 
 
@@ -168,6 +180,138 @@ def handler():
                     plt.imshow(ig)
                     #plt.show()
 
+def remove_union(max_pol, min_pol):
+    c = np.vstack((max_pol, min_pol))
+    x_min, y_min, x_max, y_max = np.min(c[:, 0]), np.min(c[:, 1]), np.max(c[:, 0]), np.max(c[:, 1])
+    h = y_max - y_min
+    w = x_max - x_min
+    ig_max = np.zeros(shape=(h,w ,3), dtype=np.uint8)
+    ig_min = np.zeros(shape=(h,w ,3), dtype=np.uint8)
+
+    max_pol = max_pol -[x_min, y_min]
+    min_pol =min_pol -[x_min, y_min]
+
+    cv2.fillPoly(ig_max, np.asarray([max_pol]), (255, 255, 255))
+    cv2.fillPoly(ig_min, np.asarray([min_pol]), (255, 255, 255))
+    ig_max = ig_max[:,:,0]
+    ig_min = ig_min[:,:,0]
+    ig_max[np.where(ig_min>0)] = 0
+    cters, _ = cv2.findContours(ig_max, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for cc in cters:
+        if cv2.contourArea(cc) > 5000:
+            cc = np.squeeze(cc, 1)
+            cc = cc + [x_min, y_min]
+            return cc
+
+
+
+
+
+
+def get_right_counter(mask_dr):
+    mask = cv2.imread(mask_dr, 0)
+
+    final_couter = []
+    couter = measure.find_contours(mask, level=1)
+    img = cv2.imread(mask_dr)
+    for x in couter:
+        b1 = x[:, 1:]
+        b2 = x[:, 0:1]
+        b = np.concatenate((b1, b2), axis=1)
+        #area = shape_utils.get_area_edge(b)
+        ppol = shape_utils.convert_poly(b)
+        area = ppol.area
+        length = ppol.length
+
+
+        if area>3000:
+            c = shape_utils.simlyfy(b,1)
+            c = np.asarray(c, np.int)
+            x_min, y_min, x_max, y_max = np.min(c[:, 0]),np.min(c[:, 1]),np.max(c[:, 0]),np.max(c[:, 1])
+
+            ig_w = x_max - x_min
+            ig_h = y_max - y_min
+            sqr_w = max(ig_h, ig_w)
+            mk = np.zeros(shape=(sqr_w, sqr_w, 3), dtype=np.uint8)
+            c = c-[x_min, y_min]
+            cv2.fillPoly(mk, np.asarray([c], np.int), (255, 255, 255))
+
+
+            if area<12000:
+                re_igs = cv2.resize(mk, dsize=(256, 256))
+            elif 12000<=area<250000:
+                re_igs = cv2.resize(mk, dsize=(512, 512))
+            else:
+                re_igs = cv2.resize(mk, dsize=(1024, 1024))
+            re_igs = re_igs[:, :, 0:1] / 255.0
+
+            ig = np.expand_dims(re_igs, 0)
+            ig = np.transpose(ig, axes=(0, 3, 1, 2))
+            ig = torch.from_numpy(ig).float()
+            data = torch.autograd.Variable(ig.cuda())
+            p_logits, p_out_put = gen_mod(data)
+            ip = p_out_put.cpu().detach().numpy()
+            ip = np.squeeze(ip, axis=(0,1))
+            ip = cv2.resize(ip, dsize=(sqr_w,sqr_w))
+            ip = np.asarray(ip*256, np.uint8)
+            ip[np.where(ip>=128)] = 255
+            ip[np.where(ip < 128)] = 0
+
+            cters, _ = cv2.findContours(ip, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for c in cters:
+                if cv2.contourArea(c)>3000:
+                    c = np.squeeze(c, 1)
+                    c = c+[x_min, y_min]
+                    final_couter.append(c)
+                    #cv2.polylines(mask, np.asarray([c], np.int), True, (0, 0, 255), thickness=1)
+    totoal_len = len(final_couter)
+    to_remove = []
+    for  i in range(totoal_len):
+        for j in range(i+1, totoal_len):
+            try:
+                pol1 = shape_utils.convert_poly(final_couter[i])
+                pol2 = shape_utils.convert_poly(final_couter[j])
+                inter = pol1.intersection(pol2)
+                if inter.area>0:
+                    if pol1.area > pol2.area:
+                        if inter.area == pol2.area:
+                            to_remove.append(j)
+                        else:
+                            final_couter[i] = remove_union(final_couter[i], final_couter[j])
+                    else:
+                        if inter.area == pol2.area:
+                            to_remove.append(i)
+                        else:
+                            final_couter[j] = remove_union(final_couter[j], final_couter[i])
+            except:
+                pass
+    for i in to_remove:
+        final_couter[i] = None
+
+    return final_couter
+
+
+
+
+def draw_edge(final_couter, image_dr):
+    ig = cv2.imread(image_dr)
+    for x in final_couter:
+        if x is not None:
+            cv2.polylines(ig, np.asarray([x], np.int), True, (0, 0, 255), thickness=1)
+    cv2.imwrite(image_dr.replace('.jpg','_fin.jpg'),ig)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -179,6 +323,4 @@ def handler():
 
 
 if __name__ == '__main__':
-    get_counter(mask_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/mask.jpg',
-                img_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/org.jpg',
-                )
+    get_right_counter(mask_dr='/home/dsl/fsdownload/fe356903-d985-442c-9a65-08fa23b69a8a_seg.jpg')
