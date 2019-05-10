@@ -12,7 +12,7 @@ from loss import dice
 
 def run():
     EPS = 1e-12
-    gen_mod = Generater(1)
+    gen_mod = Generater(4)
     #gen_mod.load_state_dict(torch.load('edge.pth'))
     criterion_dice = dice.DiceLoss(optimize_bg=True, smooth=1e-5)
 
@@ -50,7 +50,7 @@ def run():
                 plt.title('out_put')
                 plt.imshow(ip[0,0,:,:])
                 plt.savefig('dd.jpg')
-                torch.save(gen_mod.state_dict(),'line2edge.pth')
+                torch.save(gen_mod.state_dict(),'line2edge_new.pth')
         gen_lr.step(epoch)
 
 def eval():

@@ -1,8 +1,9 @@
-import os
+from layer.reseg import ReSeg
 import glob
 import torch
 import numpy as np
 from skimage import io
+import os
 from sklearn.cluster import KMeans,DBSCAN,MeanShift
 from matplotlib import pyplot as plt
 import time
@@ -22,11 +23,11 @@ from sklearn.decomposition import PCA
 torch.backends.cudnn.benchmark = True
 imge_size = [128, 128]
 
-
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 result_dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result'
 n_class = 1
 
-max_detect = 20
+max_detect = 10
 
 #model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=False,num_filter=32)
 
@@ -63,7 +64,7 @@ def cluster(sem_seg_prediction, ins_seg_prediction):
     sem_seg_prediction = sem_seg_prediction*255
     sem_seg_prediction = sem_seg_prediction.astype(np.uint8)
     sem_seg_prediction = np.squeeze(sem_seg_prediction,0)
-    sem_seg_prediction[sem_seg_prediction<150] = 0
+    sem_seg_prediction[sem_seg_prediction<50] = 0
 
     embeddings = ins_seg_prediction
 
@@ -143,12 +144,29 @@ def run():
     handler_num = 0
     dd = glob.glob(os.path.join(dr,'*.png'))
     np.random.shuffle(dd)
+    total_iou = []
     with torch.no_grad():
-        for x in dd:
+        for x in dd[0:2000]:
             print(x)
             #x = '/home/dsl/fsdownload/add/2afcb628-108b-45a3-a9cd-e75739ebc793_seg/19_436266_210776.png'
-            ig_name = x.split('/')[-1]
+            json_pth = x.replace('.png','.json')
+            label_masks = []
+            js_data = json.loads(open(json_pth).read())
+            for b in js_data:
+                label = b['correction_type']
+                if label == 'land':
+                    points = b['boundary']
+                    p = []
+                    for pp in points:
+                        p.append([pp['x'], pp['y']])
+                    direct = np.zeros(shape=[256, 256, 3], dtype=np.uint8)
+                    cv2.fillPoly(direct, np.asarray([p], np.int), (255, 255, 255))
+                    # cv2.polylines(direct,np.asarray([p], np.int),True, (255,255,255), thickness=2)
+                    label_masks.append(direct[:, :, 0]/255)
+            if len(label_masks)==0:
+                continue
 
+            ig_name = x.split('/')[-1]
             tt = cv2.imread(x)
             tt1 = np.zeros(shape=(256,256,3),dtype=np.uint8)
             org_imgs = io.imread(x)[:,:,0:3]
@@ -170,6 +188,7 @@ def run():
 
             if True:
                 try:
+                    pred_mask = []
                     _, instance_mask,  ins_cls_out = cluster(sem_seg_out, ins_seg_out)
 
                     for ix in range(ins_cls_out):
@@ -177,31 +196,28 @@ def run():
                         k = k.astype(np.int32)
                         k = cv2.resize(k, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
                         if np.sum(k)>0:
-                            #num, ct = instance_handler.smooth_edge(tt,k,pading_x,pading_y)
-                            num , ct = instance_handler.get_counter(tt1, k,0,0)
-
-
-                    cl = color_pic(ins_cls_out, instance_mask)
-                    plt.subplot(221)
-                    plt.imshow(tt)
-                    plt.subplot(222)
-                    seg = (sem_seg_out[0,:,:]*255).astype(np.uint8)
-                    seg[seg < 150] = 0
-                    seg[seg > 150] = 255
-                    seg = cv2.resize(seg,dsize=(256,256), interpolation=cv2.INTER_NEAREST)
-                    plt.imshow(seg)
-                    plt.subplot(223)
-                    plt.imshow(tt1)
-
-                    plt.subplot(224)
-                    cl = cv2.resize(cl, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
-                    plt.imshow(cl)
-                    plt.show()
-                    plt.savefig('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge1/'+ig_name)
-                    #cv2.imwrite('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'+ig_name,seg)
-                    #cv2.imwrite('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line/' + ig_name, tt1)
+                            pred_mask.append(k)
+                    for real_mask in label_masks:
+                        max_iou = 0
+                        for pd_mask in pred_mask:
+                            plt.subplot(121)
+                            plt.imshow(pd_mask)
+                            plt.subplot(122)
+                            plt.imshow(real_mask)
+                            #plt.show()
+                            tmp = np.sum(pd_mask*real_mask)/np.sum(real_mask)
+                            if tmp>max_iou:
+                                max_iou=tmp
+                        total_iou.append(max_iou)
+                    print('average_iou=', sum(total_iou) / len(total_iou))
                 except:
                     pass
+    print(total_iou)
+    print('final_average_iou=',sum(total_iou)/len(total_iou))
+
+
+
+
 
 
 

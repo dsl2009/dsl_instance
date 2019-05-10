@@ -114,8 +114,8 @@ class ResNet(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=1, dilation=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=4)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilation=1)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=1, dilation=2)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -150,7 +150,7 @@ class ResNet(nn.Module):
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
         x4 = self.layer4(x3)
-        return x, x1,x4
+        return x, x1, x2,x3, x4
 
 
 class ResNet_Dsl(nn.Module):

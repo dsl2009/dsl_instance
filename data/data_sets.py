@@ -26,10 +26,29 @@ class LineArea(object):
         self.image_size = [256, 256]
         self.md = LineArea1()
     def len(self):
-        return len(self.imgs)+self.md.len()
+        return len(self.imgs)
+
+    def draw_line(self, p):
+        edges = list(p)
+        edges.append(p[0])
+        msk = np.zeros(shape=[self.image_size[0], self.image_size[1], 3], dtype=np.uint8)
+        for i in range(len(edges) - 1):
+            p1 = edges[i]
+            p2 = edges[i + 1]
+            if p1[0] == 0 and p2[0] == 0:
+                pass
+            elif p1[1] == 0 and p2[1] == 0:
+                pass
+            elif p1[0] == 255 and p2[0] == 255:
+                pass
+            elif p1[1] == 255 and p2[1] == 255:
+                pass
+            else:
+                cv2.line(msk, tuple(p1), tuple(p2), (255, 255, 255), thickness=np.random.randint(1,3))
+        return msk[:, :, 0:1]
 
     def pull_item(self,ix):
-        if ix<len(self.imgs):
+        if True:
             json_pth = self.imgs[ix]
             js_data = json.loads(open(json_pth).read())
             image_pth = json_pth.replace('.json', '.png')
@@ -55,20 +74,19 @@ class LineArea(object):
             y = d[1]
             y = y[k]
             line[x,y] =0
-            #line = np.expand_dims(line,-1)
-            #line = np.concatenate([ig_data, line],axis=2)
-            return line, mask
-        else:
-            return self.md.pull_item(ix-len(self.imgs))
+            line = np.expand_dims(line,-1)
+            line = np.concatenate([ig_data- [123.15, 115.90, 103.06], line],axis=2)
+            return np.transpose(line,(2,0,1)), mask
 
     def draw(self, points):
         p = []
         for pp in points:
             p.append([pp['x'], pp['y']])
-        line = np.zeros(shape=[self.image_size[0], self.image_size[1], 3], dtype=np.uint8)
+        #line = np.zeros(shape=[self.image_size[0], self.image_size[1], 3], dtype=np.uint8)
         mask = np.zeros(shape=[self.image_size[0], self.image_size[1], 3], dtype=np.uint8)
         cv2.fillPoly(mask, np.asarray([p], np.int), (255, 255, 255))
-        cv2.polylines(line, np.asarray([p], np.int), True, (255, 255, 255), thickness=np.random.randint(1,3))
+        #cv2.polylines(line, np.asarray([p], np.int), True, (255, 255, 255), )
+        line = self.draw_line(p)
         return line[:,:,0], mask[:,:,0]
 
 

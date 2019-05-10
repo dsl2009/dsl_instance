@@ -9,8 +9,10 @@ import numpy as np
 from torch import optim
 import os
 from torch.nn import functional as F
-from models.widresnet_seg_128 import SegModel
+from models.widresnet_seg_128_coord import SegModel
 import time
+from torch.utils.tensorboard import SummaryWriter
+
 from layer.coord_conv import  CoordConvNet
 torch.backends.cudnn.benchmark = True
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
@@ -37,7 +39,7 @@ stm = optim.lr_scheduler.StepLR(optimizer=optimizer, step_size=60000, gamma=0.7)
 
 
 def run():
-
+    writer = SummaryWriter(log_dir='/home/dsl/all_check/pytorch_tb')
     for x in range(10000000):
         org_img, instance_mask, seg_mask, num_obj_org = next(data_gener)
 
@@ -73,17 +75,18 @@ def run():
         dice_loss = criterion_dice(sem_seg_out, seg_mask)
 
 
-        be_loss = F.binary_cross_entropy_with_logits(input=sem_seg_out, target=seg_mask,weight=torch.tensor(pos_weight_point))
+        be_loss = F.binary_cross_entropy_with_logits(input=sem_seg_out, target=seg_mask)
 
-
+        writer.add_scalar('dice_loss', dice_loss, x)
+        writer.add_scalar('discri_loss', discri_loss, x)
+        writer.add_scalar('be_loss', be_loss, x)
         totoal_loss =dice_loss+discri_loss+be_loss
-
         optimizer.zero_grad()
         totoal_loss.backward()
         optimizer.step()
 
         if x%2000==0:
-            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/land_res_edge_128_' + str(x) + '.pth')
+            torch.save(model.state_dict(), '/home/dsl/all_check/instance_land/land_res_mask_128_19' + str(x) + '.pth')
 
         if x%1 == 0:
             t1 = time.time()-t

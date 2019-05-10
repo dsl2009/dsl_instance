@@ -1,0 +1,36 @@
+import cv2
+from matplotlib import pyplot as plt
+import numpy as np
+org = cv2.imread('/home/dsl/fsdownload/8acad878-9d03-4b1a-93e0-aa10143ef1ae_seg.jpg')
+
+ig = cv2.imread('/home/dsl/fsdownload/8acad878-9d03-4b1a-93e0-aa10143ef1ae_seg.jpg',0)
+plt.imshow(ig)
+plt.show()
+dist = cv2.distanceTransform(ig, cv2.DIST_L2,5)
+print(np.max(dist),np.min(dist))
+cv2.normalize(dist,dist,0,1.0,cv2.NORM_MINMAX)
+plt.imshow(dist)
+plt.show()
+_,dist = cv2.threshold(dist,0.03,1.0,cv2.THRESH_BINARY)
+plt.imshow(dist)
+plt.show()
+kernel11 = np.ones((5,5),dtype=np.uint8)
+dist = cv2.dilate(dist, kernel11)
+cv2.imwrite('/home/dsl/fsdownload/3c55a37a-9abf-472e-9b2f-4e1cd6b16e49_seg_right.jpg',dist*255)
+plt.imshow(dist)
+plt.show()
+dist_8u = dist.astype('uint8')
+counters,_ = cv2.findContours(dist_8u,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
+markers = np.zeros(dist.shape,dtype=np.int32)
+for i in range(len(counters)):
+    cv2.drawContours(markers,counters,i,(i+1),-1)
+cv2.circle(markers,(5,5),3,(255,255,255),-1)
+plt.imshow(markers*10000)
+plt.show()
+cv2.watershed(org, markers)
+mark = markers.astype('uint8')
+mark = cv2.bitwise_not(mark)
+
+plt.imshow(mark)
+plt.show()
+print(dist.shape)

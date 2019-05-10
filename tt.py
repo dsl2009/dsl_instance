@@ -15,13 +15,21 @@ from utils import test_utils
 
 from shapely.geometry import Point,Polygon
 
+from skimage import io
+import glob
+from result import utils_cv
+import cv2
+utils_cv.get_right_counter('/home/dsl/fsdownload/b0d64daa-6eb8-4f4e-8a3b-36f90ec5091b_seg.jpg')
+ig = np.zeros(shape=(256,256,3),dtype=np.uint8)
 
-a = [[0,0],[0.5,0.5],[0,1],[1,1],[1,0]]
+cv2.rectangle(ig,(20,20),(100,100),color=(255,255,255),thickness=-1)
+pyplot.imshow(ig)
+pyplot.show()
 
-pol = Polygon(a)
-print(pol.convex_hull)
-r = np.sqrt(pol.area/3.1415)/2
-print(pol.is_simple)
-print(r)
-print(pol.area/pol.length)
+igs = ig[:,:,0]/255.0
+print(np.sum(igs))
+igs = cv2.dilate(igs,kernel=np.ones(shape=(5,5),dtype=np.uint8))
+print(np.sum(igs))
+pyplot.imshow(igs)
+pyplot.show()
 

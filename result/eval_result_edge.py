@@ -12,7 +12,7 @@ from result import instance_handler
 from models.edge_model import Generater
 
 from utils  import pytorch_cluster
-from models.widresnet_seg_128 import SegModel as InstanceModel
+from models.widresnet_seg_128_new import SegModel as InstanceModel
 from sklearn.decomposition import PCA
 
 torch.backends.cudnn.benchmark = True
@@ -22,7 +22,7 @@ imge_size = [256, 256]
 model = InstanceModel()
 #model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net3_168000.pth'))
 #model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_128_18_74000.pth'))
-model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_128_18_96000.pth'))
+model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_128_mask_338000.pth'))
 model.cuda()
 model.eval()
 
@@ -38,12 +38,12 @@ def cluster(sem_seg_prediction, ins_seg_prediction):
     sem_seg_prediction = sem_seg_prediction*255
     sem_seg_prediction = sem_seg_prediction.astype(np.uint8)
     sem_seg_prediction = np.squeeze(sem_seg_prediction,0)
-    sem_seg_prediction[sem_seg_prediction<100] = 0
+    sem_seg_prediction[sem_seg_prediction<30] = 0
     embeddings = ins_seg_prediction
     embeddings = embeddings.transpose(1, 2, 0)  # h, w, c
     embeddings = np.stack([embeddings[:, :, i][sem_seg_prediction != 0]
                            for i in range(embeddings.shape[2])], axis=1)
-    pca = PCA(n_components=4).fit_transform(embeddings)
+    pca = PCA(n_components=2).fit_transform(embeddings)
     t = time.time()
     nums, labels  = pytorch_cluster.cluster(torch.from_numpy(pca).cuda())
     print('gpu',time.time() - t)
@@ -68,7 +68,7 @@ def color_pic(_n_clusters,ins_seg_pred, ig_size):
 
 
 def run():
-    dr = '/home/dsl/fsdownload/*'
+    dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/land_19_bk/*'
     for d in glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/*.*'):
         os.remove(d)
     for d in glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line/*.*'):
@@ -77,10 +77,11 @@ def run():
     handler_num = 0
     dd = glob.glob(os.path.join(dr,'*.png'))
     #dd = glob.glob('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/land/1a5dafff-e4a3-42e8-8706-411164df0122/19_455459_183644.png')
-    #np.random.shuffle(dd)
+    np.random.shuffle(dd)
     with torch.no_grad():
         for x in dd:
             print(x)
+            x='/home/dsl/fsdownload/826f264e-a602-4858-881f-9c68c6e9b294/18_208413_100570.png'
             ig_name = x.split('/')[-1]
             tt = cv2.imread(x)
             tt1 = np.zeros(shape=(256,256,3),dtype=np.uint8)
@@ -110,7 +111,7 @@ def run():
                         k = cv2.resize(k, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
                         k = k.astype(np.float)
                         ip_ig = np.expand_dims(k,-1)
-                        #ip_ig = np.concatenate([org_imgs/255.0, ip_ig],2)
+                        #ip_ig = np.concatenate([(org_imgs-[123.15, 115.90, 103.06])/255.0, ip_ig],2)
                         ip_ig = np.expand_dims(np.transpose(ip_ig, (2,0,1)),0)
 
                         ip_ig = torch.from_numpy(ip_ig).float().cuda()
@@ -143,7 +144,8 @@ def run():
                     cl = cv2.resize(cl, dsize=(256, 256), interpolation=cv2.INTER_NEAREST)
                     plt.imshow(cl)
                     plt.show()
-                    plt.savefig('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge1/'+ig_name)
+                    plt.savefig('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'+ig_name)
+
                     #cv2.imwrite('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line_edge/'+ig_name,seg)
                     #cv2.imwrite('/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/result/line/' + ig_name, tt1)
                 except:

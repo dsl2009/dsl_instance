@@ -197,13 +197,13 @@ def get_edge_seg(batch_size):
             img = img/255.0
             instance_mask = instance_mask/255.0
             if b== 0:
-                images = np.zeros(shape=[batch_size,1, 256, 256],dtype=np.float32)
+                images = np.zeros(shape=[batch_size,4, 256, 256],dtype=np.float32)
                 seg_masks = np.zeros(shape=[batch_size,1, 256, 256], dtype=np.float32)
-                images[b, 0, :,:] = img
+                images[b, :, :,:] = img
                 seg_masks[b, 0,:,:] = instance_mask
                 b=b+1
             else:
-                images[b, 0, :, :] = img
+                images[b, :, :, :] = img
                 seg_masks[b, 0, :, :] = instance_mask
                 b = b + 1
             index = index + 1

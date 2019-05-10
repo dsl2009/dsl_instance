@@ -1,4 +1,4 @@
-from models import resnet
+from models import resnet_coord as resnet
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -6,7 +6,7 @@ from layer import renet
 class SegModel(nn.Module):
     def __init__(self):
         super(SegModel, self).__init__()
-        self.cnn = resnet.resnet50(pretrained=False)
+        self.cnn = resnet.resnet101(use_dsl=True)
         self.cov1 = nn.Sequential(
             nn.Conv2d(2048, 512, kernel_size=1, stride=1,bias=False),
             nn.BatchNorm2d(512),
@@ -46,7 +46,7 @@ class SegModel(nn.Module):
         x2_up = F.interpolate(x2,scale_factor=2)
         x1 = torch.cat([x2_up, x1],dim =1)
         x1 = self.cov3(x1)
-        x1 = F.interpolate(x1,scale_factor=2)
+        #x1 = F.interpolate(x1,scale_factor=2)
         seg = self.final_seg(x1)
         ins = self.final_instance(x1)
         return seg, ins

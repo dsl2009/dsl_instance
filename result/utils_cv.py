@@ -9,7 +9,7 @@ from skimage import measure
 from models.edge_model import Generater
 import torch
 gen_mod = Generater(1)
-gen_mod.load_state_dict(torch.load('../mask_optm.pth'))
+gen_mod.load_state_dict(torch.load('/home/dsl/PycharmProjects/dsl_instance/mask_optm.pth'))
 gen_mod.cuda()
 gen_mod.eval()
 
@@ -203,13 +203,23 @@ def remove_union(max_pol, min_pol):
             cc = cc + [x_min, y_min]
             return cc
 
-
+def spre(ig):
+    thod = 0.1
+    dist = cv2.distanceTransform(ig, cv2.DIST_L2, 3)
+    max_distance = np.max(dist)
+    cv2.normalize(dist, dist, 0, 1.0, cv2.NORM_MINMAX)
+    _, dist = cv2.threshold(dist, thod, 1.0, cv2.THRESH_BINARY)
+    kernel_size = max_distance*thod
+    kernel_size = int(kernel_size)*1
+    dist_8u = dist.astype('uint8')*255
+    return dist_8u,kernel_size
 
 
 
 
 def get_right_counter(mask_dr):
     mask = cv2.imread(mask_dr, 0)
+
 
     final_couter = []
     couter = measure.find_contours(mask, level=1)
@@ -218,13 +228,16 @@ def get_right_counter(mask_dr):
         b1 = x[:, 1:]
         b2 = x[:, 0:1]
         b = np.concatenate((b1, b2), axis=1)
-        #area = shape_utils.get_area_edge(b)
         ppol = shape_utils.convert_poly(b)
         area = ppol.area
         length = ppol.length
-
-
         if area>3000:
+            if area<12000:
+                aim_size = (256,256)
+            elif 12000<=area<250000:
+                aim_size=(512, 512)
+            else:
+                aim_size=(1024, 1024)
             c = shape_utils.simlyfy(b,1)
             c = np.asarray(c, np.int)
             x_min, y_min, x_max, y_max = np.min(c[:, 0]),np.min(c[:, 1]),np.max(c[:, 0]),np.max(c[:, 1])
@@ -235,35 +248,51 @@ def get_right_counter(mask_dr):
             mk = np.zeros(shape=(sqr_w, sqr_w, 3), dtype=np.uint8)
             c = c-[x_min, y_min]
             cv2.fillPoly(mk, np.asarray([c], np.int), (255, 255, 255))
+            print(np.sum(mk[:,:,0]/255.0))
 
+            ds, kernel_size = spre(mk[:,:,0])
+            kernel11 = np.ones((kernel_size, kernel_size), dtype=np.uint8)
+            print('kernel=',kernel_size)
+            counters, _ = cv2.findContours(ds, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if len(counters)>1:
+                plt.imshow(mk)
+                plt.show()
+                for i in range(len(counters)):
+                    if cv2.contourArea(counters[i]) > 100:
+                        tmp = np.zeros(shape=(sqr_w, sqr_w, 3), dtype=np.uint8)
+                        cv2.drawContours(tmp, counters, i, color=(255,255,255),thickness=-1)
+                        plt.imshow(tmp)
+                        plt.show()
 
-            if area<12000:
-                re_igs = cv2.resize(mk, dsize=(256, 256))
-            elif 12000<=area<250000:
-                re_igs = cv2.resize(mk, dsize=(512, 512))
+                        re_igs = tmp[:, :, 0] / 255.0
+                        re_igs = cv2.dilate(re_igs, kernel11)
+                        print(i, np.sum(re_igs))
+                        plt.imshow(re_igs)
+                        plt.show()
+                        re_igs = cv2.resize(re_igs, dsize=aim_size)
+                        re_igs = np.expand_dims(re_igs,-1)
+                        print(re_igs.shape)
+                        ip = smooth_edge(re_igs, sqr_w)
+                        plt.imshow(ip)
+                        plt.show()
+                        cters, _ = cv2.findContours(ip, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        for c in cters:
+                            if cv2.contourArea(c) > 1000:
+                                c = np.squeeze(c, 1)
+                                c = c + [x_min, y_min]
+                                final_couter.append(c)
+
             else:
-                re_igs = cv2.resize(mk, dsize=(1024, 1024))
-            re_igs = re_igs[:, :, 0:1] / 255.0
+                re_igs = cv2.resize(mk,dsize=aim_size)
+                re_igs = re_igs[:, :, 0:1] / 255.0
+                ip = smooth_edge(re_igs, sqr_w)
+                cters, _ = cv2.findContours(ip, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                for c in cters:
+                    if cv2.contourArea(c) > 2500:
+                        c = np.squeeze(c, 1)
+                        c = c + [x_min, y_min]
+                        final_couter.append(c)
 
-            ig = np.expand_dims(re_igs, 0)
-            ig = np.transpose(ig, axes=(0, 3, 1, 2))
-            ig = torch.from_numpy(ig).float()
-            data = torch.autograd.Variable(ig.cuda())
-            p_logits, p_out_put = gen_mod(data)
-            ip = p_out_put.cpu().detach().numpy()
-            ip = np.squeeze(ip, axis=(0,1))
-            ip = cv2.resize(ip, dsize=(sqr_w,sqr_w))
-            ip = np.asarray(ip*256, np.uint8)
-            ip[np.where(ip>=128)] = 255
-            ip[np.where(ip < 128)] = 0
-
-            cters, _ = cv2.findContours(ip, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            for c in cters:
-                if cv2.contourArea(c)>3000:
-                    c = np.squeeze(c, 1)
-                    c = c+[x_min, y_min]
-                    final_couter.append(c)
-                    #cv2.polylines(mask, np.asarray([c], np.int), True, (0, 0, 255), thickness=1)
     totoal_len = len(final_couter)
     to_remove = []
     for  i in range(totoal_len):
@@ -291,6 +320,19 @@ def get_right_counter(mask_dr):
     return final_couter
 
 
+def smooth_edge(re_igs, sqr_w):
+    ig = np.expand_dims(re_igs, 0)
+    ig = np.transpose(ig, axes=(0, 3, 1, 2))
+    ig = torch.from_numpy(ig).float()
+    data = torch.autograd.Variable(ig.cuda())
+    p_logits, p_out_put = gen_mod(data)
+    ip = p_out_put.cpu().detach().numpy()
+    ip = np.squeeze(ip, axis=(0, 1))
+    ip = cv2.resize(ip, dsize=(sqr_w, sqr_w))
+    ip = np.asarray(ip * 255, np.uint8)
+    ip[np.where(ip >= 50)] = 255
+    ip[np.where(ip < 50)] = 0
+    return ip
 
 
 def draw_edge(final_couter, image_dr):
@@ -323,4 +365,4 @@ def draw_edge(final_couter, image_dr):
 
 
 if __name__ == '__main__':
-    get_right_counter(mask_dr='/home/dsl/fsdownload/fe356903-d985-442c-9a65-08fa23b69a8a_seg.jpg')
+    hebing_image('/home/dsl/fsdownload/2afcb628-108b-45a3-a9cd-e75739ebc793','ddd.jpg')
