@@ -8,10 +8,11 @@ from result import instance_handler,shape_utils
 from skimage import measure
 from models.edge_model import Generater
 import torch
-gen_mod = Generater(1)
-gen_mod.load_state_dict(torch.load('/home/dsl/PycharmProjects/dsl_instance/mask_optm.pth'))
-gen_mod.cuda()
-gen_mod.eval()
+#device = torch.device('cpu')
+#gen_mod = Generater(1)
+#gen_mod.load_state_dict(torch.load('/home/dsl/PycharmProjects/dsl_instance/mask_optm.pth',map_location=device))
+#gen_mod.cuda()
+#gen_mod.eval()
 
 
 
@@ -343,8 +344,22 @@ def draw_edge(final_couter, image_dr):
     cv2.imwrite(image_dr.replace('.jpg','_fin.jpg'),ig)
 
 
+def draw_corner():
+    jpth = json.loads(open('/home/dsl/fsdownload/e9e13b1b-8fa2-4c7a-982b-6ee6ee72a57a.json').read())
+    img = cv2.imread('ddd.jpg')
+    for d in jpth['boundarys']:
+        point = []
+        for p in d['boundary']:
+            point.append([p['x'], p['y']])
+        cv2.polylines(img, np.asarray([point], np.int), True, (0, 0, 255), thickness=1)
+    cv2.imwrite('seg.jpg',img)
+    plt.imshow(img)
+    plt.show()
 
 
+def draw_circle():
+    i = json.loads(open('/home/dsl/fsdownload/5304_2908.txt'))
+    print(i)
 
 
 
@@ -365,4 +380,5 @@ def draw_edge(final_couter, image_dr):
 
 
 if __name__ == '__main__':
-    hebing_image('/home/dsl/fsdownload/2afcb628-108b-45a3-a9cd-e75739ebc793','ddd.jpg')
+    #hebing_image('/home/dsl/fsdownload/e9e13b1b-8fa2-4c7a-982b-6ee6ee72a57a','ddd.jpg')
+    draw_corner()

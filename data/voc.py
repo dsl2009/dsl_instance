@@ -38,7 +38,7 @@ class VOCDetection(object):
         labels = []
         target = ET.parse(self._annopath % img_id).getroot()
 
-        seg_mask = np.zeros(shape=(self.image_size[0],self.image_size[1]))
+
         instance_mask = []
 
 
@@ -76,12 +76,20 @@ class VOCDetection(object):
         else:
             ig, box, labels = utils.crop_image_with_box(img, self.image_size, box, labels)
         box = np.asarray(box, np.int)
+        seg_mask =  np.zeros(shape=(self.image_size[0],self.image_size[1]),dtype=np.uint8)
+
         for i in range(box.shape[0]):
             tmp = np.zeros(shape=(self.image_size[0],self.image_size[1],3),dtype=np.uint8)
             cv2.circle(tmp, center=tuple(box[i][0:2]), radius=3, color=(256, 256, 256), thickness=-1)
             cv2.circle(tmp, center=tuple(box[i][2:]), radius=3, color=(256, 256, 256), thickness=-1)
             instance_mask.append(tmp[:,:,0:1])
-            seg_mask = seg_mask+tmp[:,:,0]/255.0*(labels[i]+1)
+
+            tps = tmp[:,:,0]
+            #tp_seg = seg_mask[:,:,labels[i]]
+            tps[np.where(seg_mask > 0)] = 0
+            seg_mask = seg_mask+tps/255.0*(labels[i]+1)
+
+
         if len(instance_mask)==1:
             instance_mask = instance_mask[0]
         else:
@@ -90,7 +98,7 @@ class VOCDetection(object):
         return ig, seg_mask, instance_mask
 
 def tt():
-    image_dr = 'D:/deep_learn_data/VOCdevkit'
+    image_dr = '/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/VOCdevkit/VOCdevkit'
     data_set = VOCDetection(root=image_dr,is_crop=False,  image_size = [256, 256])
     ttlb = []
     image_size = [256, 256]
@@ -99,8 +107,9 @@ def tt():
         result = data_set.pull_item(x)
         if result:
             ig, box, labels = result
-            if labels is not None and len(labels) >0 :
-                box = box * np.asarray([image_size[1], image_size[0], image_size[1], image_size[0]])
-                visual.display_instances(ig,box)
+            for i in range(20):
+                plt.imshow(box[:,:,i])
+                plt.show()
+
 if __name__ == '__main__':
     tt()

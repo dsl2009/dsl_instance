@@ -35,13 +35,6 @@ def run():
     for step in range(10000000):
         org_img, org_mask, org_edge_mask = next(gen)
         img = org_img[:, :, :, 0:3]
-
-        point_mask = org_edge_mask
-        count_neg = np.sum(1. - point_mask)
-        count_pos = np.sum(point_mask)
-        beta = count_neg / (count_neg + count_pos)
-        pos_weight_point = beta / (1 - beta)
-
         img = np.transpose(img, axes=[0, 3, 1, 2])
         mask = np.transpose(org_mask, axes=[0, 3, 1, 2])
         edge_mask = np.transpose(org_edge_mask, axes=[0, 3, 1, 2])
@@ -59,7 +52,7 @@ def run():
         mask_loss = F.binary_cross_entropy_with_logits(mask_logits, mask_target)
         mask_dice_loss = criterion_dice(mask_logits, mask_target)
 
-        edge_loss = F.binary_cross_entropy_with_logits(edge_logits, edge_target, weight=torch.tensor(pos_weight_point).float())
+        edge_loss = F.binary_cross_entropy_with_logits(edge_logits, edge_target)
         edge_dice_loss = criterion_dice(edge_logits, edge_target)
 
         be_loss = torch.sum(mask_out*edge_out)/torch.sum(edge_target)

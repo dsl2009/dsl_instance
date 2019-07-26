@@ -6,23 +6,23 @@ from layer import renet
 class SegModel(nn.Module):
     def __init__(self):
         super(SegModel, self).__init__()
-        self.cnn = resnet.resnet101(pretrained=False)
+        self.cnn = resnet.resnet50(pretrained=False)
         self.cov1 = nn.Sequential(
             nn.Conv2d(2048, 512, kernel_size=1, stride=1,bias=False),
-            nn.BatchNorm2d(512),
+            nn.GroupNorm(32,512),
             nn.ReLU(),
 
         )
 
         self.cov2 = nn.Sequential(
             nn.Conv2d(768, 256, kernel_size=3,padding=1, stride=1, bias=False),
-            nn.BatchNorm2d(256),
+            nn.GroupNorm(32,256),
             nn.ReLU()
         )
 
         self.cov3 = nn.Sequential(
             nn.Conv2d(320, 256, kernel_size=3,padding=1, stride=1, bias=False),
-            nn.BatchNorm2d(256),
+            nn.GroupNorm(32,256),
             nn.ReLU()
         )
 
@@ -31,7 +31,7 @@ class SegModel(nn.Module):
 
         self.final_seg = nn.Conv2d(256, 1, kernel_size=3,padding=1, stride=1, bias=False)
 
-        self.final_instance = nn.Conv2d(256, 16, kernel_size=3, padding=1, stride=1, bias=False)
+        self.final_instance = nn.Conv2d(256, 8, kernel_size=3, padding=1, stride=1, bias=False)
 
     def forward(self, img):
         x1, x2, x3 = self.cnn(img)
@@ -42,10 +42,8 @@ class SegModel(nn.Module):
         x3_up = F.interpolate(x3,scale_factor=2)
         x2 = torch.cat([x3_up, x2],dim =1)
         x2 = self.cov2(x2)
-
         seg = self.final_seg(x2)
         ins = self.final_instance(x2)
-
 
         return seg, ins
 

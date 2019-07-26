@@ -20,6 +20,7 @@ from utils  import pytorch_cluster
 from models.widresnet_seg import SegModel as InstanceModel
 from sklearn.decomposition import PCA
 
+
 torch.backends.cudnn.benchmark = True
 imge_size = [128, 128]
 
@@ -34,7 +35,7 @@ max_detect = 10
 model = InstanceModel()
 
 #model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net3_168000.pth'))
-model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_res50_19_90000.pth'))
+model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_res50_19_428000.pth'))
 model.cuda()
 model.eval()
 
@@ -143,10 +144,12 @@ def run():
     result = dict()
     handler_num = 0
     dd = glob.glob(os.path.join(dr,'*.png'))
+    np.random.seed(5)
     np.random.shuffle(dd)
     total_iou = []
+
     with torch.no_grad():
-        for x in dd[0:2000]:
+        for idx, x in enumerate(dd[0:2000]):
             print(x)
             #x = '/home/dsl/fsdownload/add/2afcb628-108b-45a3-a9cd-e75739ebc793_seg/19_436266_210776.png'
             json_pth = x.replace('.png','.json')
@@ -209,7 +212,7 @@ def run():
                             if tmp>max_iou:
                                 max_iou=tmp
                         total_iou.append(max_iou)
-                    print('average_iou=', sum(total_iou) / len(total_iou))
+                    print('average_iou=', idx, sum(total_iou) / len(total_iou))
                 except:
                     pass
     print(total_iou)

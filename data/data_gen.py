@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from utils import edge_handler
 from data.data_sets import LineArea
 from data.voc import VOCDetection
+from data import jingwei
 
 
 def get_land(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256],output_size = [64,64]):
@@ -119,7 +120,8 @@ def get_land_seg(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256
 
 
 def get_tree_seg(batch_size,is_shuff = True,max_detect = 80, image_size=[256,256],output_size = [64,64]):
-    data_set = xair_guoshu.Tree_mask_ins(root_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/biao_zhu/tree/', image_size=image_size)
+    data_set = xair_guoshu.Tree_mask_ins(root_dr='/media/dsl/20d6b919-92e1-4489-b2be-a092290668e4/xair/biao_zhu/tree/',
+                                         image_size=image_size,output_size=output_size)
     idx = list(range(data_set.len()))
     print(data_set.len())
     b = 0
@@ -341,6 +343,46 @@ def get_voc_detect(batch_size,is_shuff = True,max_detect = 80, image_size=[256,2
                 index = 0
 
 
+def get_jingwei(batch_size,is_shuff = True, image_size=[512,512]):
+    data_set = jingwei.Jinwei(image_size=512)
+    idx = list(range(data_set.len()))
+    b = 0
+    index = 0
+    while True:
+        if True:
+            if index>= data_set.len():
+                index = 0
+            if is_shuff and index==0:
+                random.shuffle(idx)
+            try:
+                img,  seg_mask = data_set.pull_item(idx[index])
+                if img is None or np.sum(seg_mask)==0:
+                    index = index + 1
+                    continue
+            except:
+                index = index+1
+                continue
+            img = (img - [123.15, 115.90, 103.06])/255.0
+            seg_mask = seg_mask/255.0
+
+            if b== 0:
+                images = np.zeros(shape=[batch_size,image_size[0],image_size[1],3],dtype=np.float32)
+                instance_masks = np.zeros(shape=[batch_size,image_size[0],image_size[1], 3], dtype=np.float32)
+                images[b] = img
+                instance_masks[b, :, :,:] = seg_mask
+                b=b+1
+                index = index + 1
+            else:
+                images[b] = img
+                instance_masks[b, :, :, :] = seg_mask
+                b = b + 1
+                index = index + 1
+            if b>=batch_size:
+                yield [images,instance_masks]
+                b = 0
+
+            if index>= data_set.len():
+                index = 0
 
 if __name__ == '__main__':
     d = get_edge_seg(batch_size=4)

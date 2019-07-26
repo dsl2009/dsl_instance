@@ -68,31 +68,6 @@ class AddCoordinates(object):
 
 class CoordConv(nn.Module):
 
-    r"""2D Convolution Module Using Extra Coordinate Information as defined
-    in 'An Intriguing Failing of Convolutional Neural Networks and the
-    CoordConv Solution' (https://arxiv.org/pdf/1807.03247.pdf).
-
-    Args:
-        Same as `torch.nn.Conv2d` with two additional arguments
-        with_r (bool, optional): If `True`, adds radius (`r`) coordinate
-            information to input image. Default: `False`
-        usegpu (bool, optional): If `True`, runs operations on GPU
-            Default: `True`
-
-    Shape:
-        - Input: `(N, C_{in}, H_{in}, W_{in})`
-        - Output: `(N, C_{out}, H_{out}, W_{out})`
-
-    Examples:
-        >>> coord_conv = CoordConv(3, 16, 3, with_r=True, usegpu=False)
-        >>> input = torch.randn(8, 3, 64, 64)
-        >>> output = coord_conv(input)
-
-        >>> coord_conv = CoordConv(3, 16, 3, with_r=True, usegpu=True).cuda()
-        >>> input = torch.randn(8, 3, 64, 64).cuda()
-        >>> output = coord_conv(input)
-    """
-
     def __init__(self, in_channels, out_channels, kernel_size,
                  stride=1, padding=0, dilation=1, groups=1, bias=True,
                  with_r=False, usegpu=True):
@@ -118,32 +93,6 @@ class CoordConv(nn.Module):
 
 class CoordConvTranspose(nn.Module):
 
-    r"""2D Transposed Convolution Module Using Extra Coordinate Information
-    as defined in 'An Intriguing Failing of Convolutional Neural Networks and
-    the CoordConv Solution' (https://arxiv.org/pdf/1807.03247.pdf).
-
-    Args:
-        Same as `torch.nn.ConvTranspose2d` with two additional arguments
-        with_r (bool, optional): If `True`, adds radius (`r`) coordinate
-            information to input image. Default: `False`
-        usegpu (bool, optional): If `True`, runs operations on GPU
-            Default: `True`
-
-    Shape:
-        - Input: `(N, C_{in}, H_{in}, W_{in})`
-        - Output: `(N, C_{out}, H_{out}, W_{out})`
-
-    Examples:
-        >>> coord_conv_tr = CoordConvTranspose(3, 16, 3, with_r=True,
-        >>>                                    usegpu=False)
-        >>> input = torch.randn(8, 3, 64, 64)
-        >>> output = coord_conv_tr(input)
-
-        >>> coord_conv_tr = CoordConvTranspose(3, 16, 3, with_r=True,
-        >>>                                    usegpu=True).cuda()
-        >>> input = torch.randn(8, 3, 64, 64).cuda()
-        >>> output = coord_conv_tr(input)
-    """
 
     def __init__(self, in_channels, out_channels, kernel_size,
                  stride=1, padding=0, output_padding=0, groups=1, bias=True,

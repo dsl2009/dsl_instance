@@ -12,7 +12,7 @@ from result import instance_handler
 from models.edge_model import Generater
 
 from utils  import pytorch_cluster
-from models.widresnet_seg_128_new import SegModel as InstanceModel
+from models.widresnet_seg import SegModel as InstanceModel
 from sklearn.decomposition import PCA
 
 torch.backends.cudnn.benchmark = True
@@ -22,7 +22,7 @@ imge_size = [256, 256]
 model = InstanceModel()
 #model.load_state_dict(torch.load('/home/dsl/all_check/instance_land/net3_168000.pth'))
 #model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_128_18_74000.pth'))
-model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_128_mask_338000.pth'))
+model.load_state_dict(torch.load('/home/dsl/fsdownload/land_edge_res50_19_78000.pth'))
 model.cuda()
 model.eval()
 
@@ -38,7 +38,7 @@ def cluster(sem_seg_prediction, ins_seg_prediction):
     sem_seg_prediction = sem_seg_prediction*255
     sem_seg_prediction = sem_seg_prediction.astype(np.uint8)
     sem_seg_prediction = np.squeeze(sem_seg_prediction,0)
-    sem_seg_prediction[sem_seg_prediction<30] = 0
+    sem_seg_prediction[sem_seg_prediction<128] = 0
     embeddings = ins_seg_prediction
     embeddings = embeddings.transpose(1, 2, 0)  # h, w, c
     embeddings = np.stack([embeddings[:, :, i][sem_seg_prediction != 0]
@@ -81,7 +81,7 @@ def run():
     with torch.no_grad():
         for x in dd:
             print(x)
-            x='/home/dsl/fsdownload/826f264e-a602-4858-881f-9c68c6e9b294/18_208413_100570.png'
+            #x='/home/dsl/fsdownload/826f264e-a602-4858-881f-9c68c6e9b294/18_208413_100570.png'
             ig_name = x.split('/')[-1]
             tt = cv2.imread(x)
             tt1 = np.zeros(shape=(256,256,3),dtype=np.uint8)
