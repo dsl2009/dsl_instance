@@ -17,7 +17,7 @@ torch.backends.cudnn.benchmark = True
 os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 n_class = 1
 
-max_detect = 60
+max_detect = 20
 #model = ReSeg(n_classes=n_class,pretrained=False,use_coordinates=True, num_filter=32)
 model = SegModel()
 model.cnn.load_state_dict(torch.load('/home/dsl/all_check/resnet50-19c8e357.pth'),strict=False)
